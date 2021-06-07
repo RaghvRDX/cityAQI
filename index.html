@@ -1,0 +1,138 @@
+<html>
+	<head>
+		<script
+		  src="https://code.jquery.com/jquery-3.6.0.min.js"
+		  integrity="sha256-/xUj+3OJU5yExlq6GSYGSHk7tPXikynS7ogEvDej/m4="
+		  crossorigin="anonymous"></script>
+		<!-- <script src="https://code.highcharts.com/highcharts.js"></script> -->
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css"/>
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css"/>
+	</head>	
+	<style>
+		.sparkline-trend {
+			height: 50px;
+			width: 200px;
+			display: inline-block
+		}
+		.table > tbody > tr > td {
+			vertical-align: middle;
+		}
+	</style>
+	<body>
+		<table class="table table-condensed table-bordered" id="aqiSummary">
+			<thead>
+				<tr>
+					<th style="width: 120px">City</th>
+					<th style="width: 80px">AQI</th>
+					<th>Trend</th>
+				</tr>
+			</thead>
+			<tbody>
+			</tbody>
+		</table>
+	</body>
+	<script>
+		$(function () {
+
+			function getColor(value) {
+				var color = "#000";
+				var ranges = {
+					"#06AE00": [0, 51],
+					"#70C86D": [51, 101],
+					"#EAF401": [101, 201],
+					"#FAC205": [201, 301],
+					"#FA4B05": [301, 401],
+					"#A00000": [401, 500]
+				}
+				for(var key in ranges){
+					if(value >= ranges[key][0] && value <= ranges[key][1]){
+						return key;
+					}
+				}
+				return color;
+			}
+			
+			function loadTable(tableId, fields, data) {
+				var rows = '';
+
+				$("#aqiSummary tbody tr").remove();
+				var table = document.getElementById("aqiSummary");
+				$.each(Object.values(data), function(index1, item) {
+					var row = document.createElement('tr');
+					$(table).find('tbody').append(row);
+					$.each(fields, function(index, field) {
+					  if(field == 'Trend') {
+						var td = document.createElement('td');
+						td.setAttribute("class", "sparkline-trend");
+						td.setAttribute("id", "table"+(index1+1));
+						row.appendChild(td);
+						td.innerHTML = "Updated a while ago";
+						/*
+						//TODO
+							window.setTimeout(function(){
+								$(td).highcharts(item[field]);
+							},0);
+						}
+						*/
+					  } else {
+						var td = document.createElement('td');
+						if(field == 'AQI') {
+							td.style.background = getColor(item['AQI']);
+						}
+						td.innerHTML = item[field];
+						row.appendChild(td);
+					  }
+					});
+				});
+				
+			}
+			
+			var data2 = {};
+			function handleUpdateData(data) {
+				var data3 = [];
+				if(Object.keys(data).length > 0){
+					data.forEach(({city, aqi}) => {
+						if( data2[city] ) {
+							data2[city].Trend.series.push({
+								x: data2[city].Trend.series.length,
+								y: aqi
+							})
+						} else {
+							data2[city] = {};
+							data2[city]['Trend'] = {
+							  series: [{
+								x: 0,
+								y: aqi				  
+							  }]
+							}
+						}
+						data2[city]['City'] = city;
+						data2[city]['AQI'] = aqi.toFixed(2);
+						data3.push( data2[city] );
+					})
+					loadTable('aqiSummary', ['City', 'AQI', 'Trend'], data2);
+				}
+			}
+			
+			var socket = new WebSocket('ws://city-ws.herokuapp.com/'); 
+			socket.addEventListener('open', function (event) { 
+			  socket.send('Hello Server!'); 
+			}); 
+
+			socket.addEventListener('message', function (event) {
+				var data = {};
+				try{
+					data = JSON.parse(event.data);
+				}catch(e){
+					console.log(e);
+				}
+			  handleUpdateData(data);
+			});
+
+			socket.addEventListener('close', function (event) { 
+			  console.log('The connection has been closed'); 
+			});
+			
+		});
+	</script>
+</html>
